@@ -1,7 +1,12 @@
+use axum::http::StatusCode;
+use axum::service; // バージョンが上がると変わりそう
 use axum::{extract, handler::get, response, AddExtensionLayer, Router};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use std::convert::Infallible;
+use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() {
@@ -13,6 +18,15 @@ async fn main() {
 
     // build our application with a single route
     let app = Router::new()
+        .nest(
+            "/static",
+            service::get(ServeDir::new("./static")).handle_error(|error: std::io::Error| {
+                Ok::<_, Infallible>((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Unhandled internal error: {}", error),
+                ))
+            }),
+        )
         .route("/", get(|| async { "Hello, World!" }))
         .route("/count", get(increment))
         .layer(AddExtensionLayer::new(count_state))
@@ -28,6 +42,14 @@ async fn main() {
         .await
         .unwrap();
 }
+
+// ---------------------------------------------
+// State
+// ---------------------------------------------
+
+// ---------------------------------------------
+// State
+// ---------------------------------------------
 
 // Stateを使って簡単な情報を表示する
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -54,6 +76,10 @@ async fn increment(
     let current = s.counter;
     response::Json(Counter { counter: current })
 }
+
+// ---------------------------------------------
+// Path
+// ---------------------------------------------
 
 // https://docs.rs/axum/0.2.8/axum/extract/struct.Path.html
 // 単純にPathからパラメーターを取り出す
