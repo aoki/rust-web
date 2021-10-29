@@ -1,10 +1,13 @@
-use axum::http::StatusCode;
+use askama::Template;
+use axum::http::{Response, StatusCode};
 use axum::service; // バージョンが上がると変わりそう
 use axum::{extract, handler::get, response, AddExtensionLayer, Router};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use axum::body::{Bytes, Full};
+use axum::response::{Html, IntoResponse};
 use std::convert::Infallible;
 use tower_http::services::ServeDir;
 
@@ -27,6 +30,7 @@ async fn main() {
                 ))
             }),
         )
+        .route("/greet/:name", get(greet))
         .route("/", get(|| async { "Hello, World!" }))
         .route("/count", get(increment))
         .layer(AddExtensionLayer::new(count_state))
@@ -44,8 +48,42 @@ async fn main() {
 }
 
 // ---------------------------------------------
-// State
+// Template
 // ---------------------------------------------
+
+async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse {
+    let template = HelloTemplate { name };
+    HtmlTemplate(template)
+}
+
+#[derive(Template)]
+#[template(path = "hello.html")]
+struct HelloTemplate {
+    name: String,
+}
+
+struct HtmlTemplate<T>(T);
+
+impl<T> IntoResponse for HtmlTemplate<T>
+where
+    T: Template,
+{
+    type Body = Full<Bytes>;
+    type BodyError = Infallible;
+
+    fn into_response(self) -> Response<Self::Body> {
+        match self.0.render() {
+            Ok(html) => Html(html).into_response(),
+            Err(err) => Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Full::from(format!(
+                    "Failed to render template. Error: {}",
+                    err
+                )))
+                .unwrap(),
+        }
+    }
+}
 
 // ---------------------------------------------
 // State
