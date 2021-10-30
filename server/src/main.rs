@@ -1,22 +1,23 @@
-use axum::{extract, handler::get, AddExtensionLayer, Router};
+mod handlers;
+use crate::handlers::*;
+
+// use crate::handlers::*;
+use axum::{
+    handler::{get, post},
+    AddExtensionLayer, Router,
+};
 
 #[tokio::main]
 async fn main() {
     let server = Server::new();
 
+    // うまく別の関数に切り出せなかった
     let app = Router::new()
-        .route(
-            "/",
-            get(|_state: extract::Extension<Server>| async move {
-                format!("Hello, World! {}", _state.name)
-            }),
-        )
-        .route(
-            "/foo",
-            get(
-                |_state: extract::Extension<Server>| async move { format!("/foo {}", _state.name) },
-            ),
-        )
+        .route("/", get(|| async { "foo" }))
+        .route("/logs", post(handle_post_logs))
+        .route("/csv", post(handle_post_csv))
+        .route("/csv", get(handle_get_csv))
+        .route("/logs", get(handle_get_logs))
         .layer(AddExtensionLayer::new(server));
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
