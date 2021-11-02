@@ -7,6 +7,11 @@ use axum::{
     AddExtensionLayer, Router,
 };
 
+#[macro_use]
+extern crate diesel;
+
+mod schema;
+
 #[tokio::main]
 async fn main() {
     let server = Server::new();
