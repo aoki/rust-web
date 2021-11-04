@@ -1,4 +1,4 @@
-use crate::Server;
+use crate::{db, Server};
 use anyhow::Error;
 use axum::{extract, http::StatusCode, response};
 use axum_debug::debug_handler;
@@ -8,18 +8,33 @@ type State = axum::extract::Extension<Server>;
 
 /// POST /csv のハンドラ
 pub async fn handle_post_csv(state: State) -> Result<&'static str, ErrorResponse> {
-    println!("State: {}", state.name);
     todo!()
 }
 
 /// POST /logs のハンドラ
 pub async fn handle_post_logs(
-    state: State,
+    server: State,
     log: extract::Json<api::logs::post::Request>,
 ) -> Result<StatusCode, ErrorResponse> {
-    println!("State: {}", state.name);
-    debug!("{:?}", log);
+    tracing::info!("{:?}", log);
+    use chrono::Utc;
+
+    let log = NewLog {
+        user_agent: log.user_agent.clone(),
+        response_time: log.response_time,
+        timestamp: log.timestamp.unwrap_or_else(|| Utc::now()).naive_utc(),
+    };
+
+    let x = resultdb(server, &log);
+
+    debug!("Recieved log: {:?}, {:?}", x, log);
     Ok(StatusCode::ACCEPTED)
+}
+
+fn resultdb(server: State, log: &NewLog) -> anyhow::Result<()> {
+    let conn = server.pool.get()?;
+    db::insert_log(&conn, &log)?;
+    Ok(())
 }
 
 /// GET /logs のハンドラ
@@ -28,7 +43,6 @@ pub async fn handle_get_logs(
     state: State,
     range: extract::Query<api::logs::get::Query>,
 ) -> Result<response::Json<serde_json::Value>, ErrorResponse> {
-    println!("State: {}", state.name);
     debug!("{:?}", range);
 
     Ok(response::Json(
@@ -42,7 +56,6 @@ pub async fn handle_get_csv(
     state: State,
     range: extract::Query<api::logs::get::Query>,
 ) -> Result<(StatusCode, HeaderMap, Vec<u8>), ErrorResponse> {
-    format!("State: {}", state.name);
     debug!("{:?}", range);
 
     let csv: Vec<u8> = vec![];
@@ -66,6 +79,7 @@ pub struct ErrorResponse {
     error: Error,
 }
 
+use crate::model::NewLog;
 use axum::body::{Bytes, Full};
 use axum::http::{HeaderMap, Response};
 use axum::response::IntoResponse;
@@ -78,5 +92,23 @@ impl IntoResponse for ErrorResponse {
     fn into_response(self) -> Response<Self::Body> {
         let body = response::Json(json!({"error": self.error.to_string()}));
         (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+    }
+}
+
+// TOOD: handlers に r2d2 の依存が入ってくるのを何とかする
+use diesel::r2d2;
+impl From<r2d2::Error> for ErrorResponse {
+    fn from(e: r2d2::Error) -> Self {
+        ErrorResponse {
+            error: anyhow::anyhow!("{}", e),
+        }
+    }
+}
+
+impl From<diesel::result::Error> for ErrorResponse {
+    fn from(e: diesel::result::Error) -> Self {
+        ErrorResponse {
+            error: anyhow::anyhow!("{}", e),
+        }
     }
 }

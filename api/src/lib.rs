@@ -47,7 +47,7 @@ pub mod logs {
         #[derive(Debug, Clone, Eq, PartialEq, Hash, Default, Deserialize, Serialize)]
         pub struct Request {
             pub user_agent: String,
-            pub response_time: u32,
+            pub response_time: i32,
             pub timestamp: Option<DateTime<Utc>>,
         }
     }
