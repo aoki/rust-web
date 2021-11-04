@@ -1,7 +1,9 @@
+mod db;
 mod handlers;
+mod model;
+mod schema;
 use crate::handlers::*;
 
-// use crate::handlers::*;
 use axum::{
     handler::{get, post},
     AddExtensionLayer, Router,
@@ -9,8 +11,6 @@ use axum::{
 
 #[macro_use]
 extern crate diesel;
-
-mod schema;
 
 #[tokio::main]
 async fn main() {
