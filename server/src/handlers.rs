@@ -1,7 +1,16 @@
+use crate::model::NewLog;
 use crate::{db, Server};
 use anyhow::Error;
+use axum::body::{Bytes, Full};
+use axum::http::{HeaderMap, Response};
+use axum::response::IntoResponse;
 use axum::{extract, http::StatusCode, response};
 use axum_debug::debug_handler;
+use chrono::{DateTime, Utc};
+use diesel::r2d2;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::convert::Infallible;
 use tracing::debug;
 
 type State = axum::extract::Extension<Server>;
@@ -17,37 +26,53 @@ pub async fn handle_post_logs(
     log: extract::Json<api::logs::post::Request>,
 ) -> Result<StatusCode, ErrorResponse> {
     tracing::info!("{:?}", log);
-    use chrono::Utc;
 
     let log = NewLog {
         user_agent: log.user_agent.clone(),
         response_time: log.response_time,
         timestamp: log.timestamp.unwrap_or_else(|| Utc::now()).naive_utc(),
     };
-
-    let x = resultdb(server, &log);
-
-    debug!("Recieved log: {:?}, {:?}", x, log);
-    Ok(StatusCode::ACCEPTED)
-}
-
-fn resultdb(server: State, log: &NewLog) -> anyhow::Result<()> {
-    let conn = server.pool.get()?;
-    db::insert_log(&conn, &log)?;
-    Ok(())
+    debug!("Recieved log: {:?}", log);
+    match || -> anyhow::Result<()> {
+        let conn = server.pool.get()?;
+        db::insert_log(&conn, &log)?;
+        Ok(())
+    }() {
+        Ok(_) => Ok(StatusCode::ACCEPTED),
+        Err(_) => Err(ErrorResponse {
+            error: anyhow::anyhow!("Insert error"),
+        }),
+    }
 }
 
 /// GET /logs のハンドラ
 #[debug_handler]
 pub async fn handle_get_logs(
-    state: State,
+    server: State,
     range: extract::Query<api::logs::get::Query>,
 ) -> Result<response::Json<serde_json::Value>, ErrorResponse> {
-    debug!("{:?}", range);
+    tracing::info!("{:?}", range);
 
-    Ok(response::Json(
-        serde_json::json!({"logs": "Dummy log".to_string()}),
-    ))
+    match || -> anyhow::Result<Vec<api::Log>> {
+        let conn = server.pool.get()?;
+        let logs = db::logs(&conn, range.from, range.until)?;
+        let logs = logs
+            .into_iter()
+            .map(|log| api::Log {
+                user_agent: log.user_agent,
+                response_time: log.response_time,
+                timestamp: DateTime::from_utc(log.timestamp, Utc),
+            })
+            .collect();
+        Ok(logs)
+    }() {
+        Ok(logs) => Ok(response::Json(serde_json::json!(api::logs::get::Response(
+            logs
+        )))),
+        Err(_) => Err(ErrorResponse {
+            error: anyhow::anyhow!("Select error"),
+        }),
+    }
 }
 
 /// GET /csv のハンドラ
@@ -65,7 +90,6 @@ pub async fn handle_get_csv(
     Ok((StatusCode::CREATED, headers, csv))
 }
 
-use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize)]
 pub struct CountResponse {
     count: u64,
@@ -79,12 +103,6 @@ pub struct ErrorResponse {
     error: Error,
 }
 
-use crate::model::NewLog;
-use axum::body::{Bytes, Full};
-use axum::http::{HeaderMap, Response};
-use axum::response::IntoResponse;
-use serde_json::json;
-use std::convert::Infallible;
 impl IntoResponse for ErrorResponse {
     type Body = Full<Bytes>;
     type BodyError = Infallible;
@@ -96,7 +114,6 @@ impl IntoResponse for ErrorResponse {
 }
 
 // TOOD: handlers に r2d2 の依存が入ってくるのを何とかする
-use diesel::r2d2;
 impl From<r2d2::Error> for ErrorResponse {
     fn from(e: r2d2::Error) -> Self {
         ErrorResponse {
