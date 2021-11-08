@@ -20,6 +20,10 @@ extern crate diesel;
 
 #[tokio::main]
 async fn main() {
+    if std::env::var_os("RUST_LOG").is_none() {
+        std::env::set_var("RUST_LOG", "server=debug, tower_http=debug")
+    }
+
     tracing_subscriber::fmt::init();
 
     let server = Server::new();
@@ -37,7 +41,7 @@ async fn main() {
                 .make_span_with(DefaultMakeSpan::new().include_headers(true))
                 .on_request(|_request: &Request<_>, _span: &Span| {
                     DefaultOnRequest::new().level(Level::INFO);
-                    tracing::info!("{:?}", _request.body())
+                    tracing::info!("{:?}", _request)
                 })
                 .on_response(
                     DefaultOnResponse::new()

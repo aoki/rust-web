@@ -2,6 +2,8 @@ use crate::model::NewLog;
 use crate::{db, Server};
 use anyhow::Error;
 use axum::body::{Bytes, Full};
+use axum::extract::ContentLengthLimit;
+use axum::extract::Multipart;
 use axum::http::{HeaderMap, Response};
 use axum::response::IntoResponse;
 use axum::{extract, http::StatusCode, response};
@@ -16,7 +18,10 @@ use tracing::debug;
 type State = axum::extract::Extension<Server>;
 
 /// POST /csv のハンドラ
-pub async fn handle_post_csv(state: State) -> Result<&'static str, ErrorResponse> {
+pub async fn handle_post_csv(
+    server: State,
+    ContentLengthLimit(mut multipart): ContentLengthLimit<Multipart, { 250 * 1024 * 1024 }>,
+) -> Result<&'static str, ErrorResponse> {
     todo!()
 }
 

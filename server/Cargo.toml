@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 api = {path = "../api"}
-axum = "0.2.8"
+axum = {version = "0.2.8", features = ["multipart"]}
 axum-debug = "0.1.0"
 axum-debug-macros = "0.1.0"
 tokio = {version = "1.13.0", features = ["macros", "rt-multi-thread"]}
