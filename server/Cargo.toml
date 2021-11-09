@@ -20,4 +20,5 @@ diesel = { version = "1.4.8", features = ["postgres", "chrono", "r2d2"] }
 dotenv = "0.15.0"
 chrono = "0.4.19"
 tower-http = { version = "0.1.1", features = ["trace"] }
-
+csv = "1.1.6"
+itertools = "0.10.1"
