@@ -1,4 +1,9 @@
+mod api_client;
+
+use api_client::ApiClient;
 use clap::{arg_enum, App, AppSettings, Arg, SubCommand};
+use reqwest::blocking::Client;
+use std::io;
 
 arg_enum! {
     #[derive(Debug)]
@@ -37,7 +42,12 @@ fn main() {
         );
 
     let matches = opts.get_matches();
-    let server = matches.value_of("SERVER").unwrap_or("localhost:3000");
+    let server: String = matches
+        .value_of("SERVER")
+        .unwrap_or("localhost:3000")
+        .into();
+    let client = Client::new();
+    let api_client = ApiClient { server, client };
     match matches.subcommand() {
         ("get", sub_match) => {
             let format: Format = sub_match
@@ -49,7 +59,21 @@ fn main() {
                 Format::Json => todo!(),
             }
         }
-        ("post", sub_match) => println!("get: {:?}", sub_match),
+        ("post", sub_match) => do_post_csv(&api_client),
         _ => unreachable!(),
+    }
+}
+
+fn do_post_csv(api_client: &ApiClient) {
+    let reader = csv::Reader::from_reader(io::stdin());
+    for log in reader.into_deserialize::<api::logs::post::Request>() {
+        let log = match log {
+            Ok(log) => log,
+            Err(e) => {
+                eprintln!("[WARN] failed to parse a line, skipping: {}", e);
+                continue;
+            }
+        };
+        api_client.psot_logs(&log).expect("api request failed");
     }
 }
