@@ -3,7 +3,7 @@ mod api_client;
 use api_client::ApiClient;
 use clap::{arg_enum, App, AppSettings, Arg, SubCommand};
 use reqwest::blocking::Client;
-use std::io;
+use std::io::{self, Write};
 
 arg_enum! {
     #[derive(Debug)]
@@ -28,6 +28,7 @@ fn main() {
                 .help("server url")
                 .takes_value(true),
         )
+        .subcommand(SubCommand::with_name("post").about("post logs, taking input from stdin"))
         .subcommand(
             SubCommand::with_name("get").about("get logs").arg(
                 Arg::with_name("FORMAT")
@@ -55,11 +56,11 @@ fn main() {
                 .map(|m| m.parse().unwrap())
                 .unwrap();
             match format {
-                Format::Csv => todo!(),
-                Format::Json => todo!(),
+                Format::Csv => do_get_csv(&api_client),
+                Format::Json => do_get_json(&api_client),
             }
         }
-        ("post", sub_match) => do_post_csv(&api_client),
+        ("post", _) => do_post_csv(&api_client),
         _ => unreachable!(),
     }
 }
@@ -76,4 +77,26 @@ fn do_post_csv(api_client: &ApiClient) {
         };
         api_client.psot_logs(&log).expect("api request failed");
     }
+}
+
+fn do_get_json(api_client: &ApiClient) {
+    let res = api_client.get_logs().expect("api request failed");
+    let json_str = serde_json::to_string(&res).unwrap();
+    println!("{}", json_str);
+}
+
+fn do_get_csv(api_client: &ApiClient) {
+    let out = io::stdout();
+    let mut out = out.lock();
+    api_client.get_csv(&mut out).expect("api request failed");
+    out.flush().unwrap();
+
+    // https://rust-lang-nursery.github.io/rust-cookbook/encoding/csv.html#serialize-records-to-csv
+    // let mut wtr = csv::Writer::from_writer(io::stdout());
+    // wtr.write_record(&["UA", "ResponseTime", "TimeStamp"])
+    //     .unwrap();
+    // for r in res.0 {
+    //     wtr.serialize(r).unwrap();
+    // }
+    // wtr.flush().unwrap();
 }

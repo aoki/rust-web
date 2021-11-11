@@ -9,7 +9,7 @@ use axum::response::IntoResponse;
 use axum::{extract, http::StatusCode, response};
 use axum_debug::debug_handler;
 use chrono::{DateTime, Utc};
-use diesel::r2d2::{self, Pool};
+use diesel::r2d2::{self};
 use diesel::PgConnection;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
